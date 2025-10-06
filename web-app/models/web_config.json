@@ -1,0 +1,21 @@
+{
+  "model_path": "models/emotion_model.onnx",
+  "model_info_path": "models/model_info.json",
+  "supported_formats": [
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ],
+  "max_file_size": "10MB",
+  "inference_settings": {
+    "confidence_threshold": 0.3,
+    "min_face_size": 80,
+    "detection_delay": 500
+  },
+  "ui_settings": {
+    "show_confidence": true,
+    "show_all_predictions": true,
+    "enable_camera": true,
+    "enable_file_upload": true
+  }
+}

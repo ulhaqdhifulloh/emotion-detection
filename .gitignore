@@ -1,0 +1,91 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+activate_venv.bat
+setup_venv.bat
+activate_venv.ps1
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Trained models (comment out if you want to commit models)
+models/*.pth
+models/*.pt
+models/*.onnx
+models/*.pkl
+models/*.h5
+!models/.gitkeep
+
+# Training results (comment out if you want to commit results)
+results/*.png
+results/*.jpg
+results/*.json
+results/yolo_emotion_training/
+!results/.gitkeep
+
+# Dataset files (usually too large for git)
+data/train/
+data/val/
+data/test/
+data/Facial\ Emotion.v1i.yolov11/
+!data/.gitkeep
+
+# Temporary files
+temp_*.jpg
+temp_*.png
+screenshot_*.jpg
+*.tmp
+
+# Logs
+*.log
+logs/
+runs/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup

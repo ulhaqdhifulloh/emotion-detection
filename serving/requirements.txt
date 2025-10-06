@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-pillow
-numpy
-torch
-torchvision
-scikit-learn
-python-multipart
-opencv-python-headless
