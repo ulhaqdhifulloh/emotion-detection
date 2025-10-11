@@ -1,4 +1,4 @@
-# Dockerfile (CPU only)
+# Dockerfile (standard name)
 FROM python:3.11.9-slim
 
 WORKDIR /app
@@ -12,9 +12,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
+# Copy model checkpoint into the image (ensure file exists in api/ before build)
+COPY cnn_emotion_model_v6-2.pth /app/cnn_emotion_model_v6-2.pth
 
-# Set ENV (ubah sesuai path checkpoint di container, bind-mount saat run)
-ENV IMG_SIZE=224
+# Set ENV defaults for container
+ENV IMG_SIZE=224 \
+    CHECKPOINT_PATH=/app/cnn_emotion_model_v6-2.pth
 
-EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 3003
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3003"]

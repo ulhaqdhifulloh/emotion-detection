@@ -1,17 +1,4 @@
 # main.py
-# FastAPI inference server for EmotionCNN (ResNet18 backbone)
-# - Memuat checkpoint sekali saat start
-# - Endpoint:
-#     GET  /health
-#     POST /predict            -> single image (multipart/form-data)
-#     POST /predict-batch      -> multiple images (multipart/form-data)
-# - Fitur:
-#     * Preprocess identik dgn skrip Anda (face-crop + CLAHE + Grayscale->RGB + Resize+Normalize)
-#     * Opsional TTA (flip horizontal)
-#     * Opsional FP16 autocast saat GPU
-#     * Thread-safe inference lock
-#     * CORS diaktifkan (bisa batasi origins kalau perlu)
-
 import io
 import os
 import time
@@ -22,18 +9,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models, transforms
-from PIL import Image, ImageFilter
+from PIL import Image
 import cv2
 
 from fastapi import FastAPI, File, UploadFile, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# -----------------------------
-# 0) KONFIG / GLOBALS
-# -----------------------------
-# ENV var agar mudah pindah server tanpa ubah kode
-CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH", "/models/fine-tune/cnn_emotion_model_v6-2.pth")
+# Config
+# ENV var untuk memindahkan server tanpa ubah kode
+API_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_CKPT = os.path.join(API_DIR, "cnn_emotion_model_v6-2.pth")
+CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH", DEFAULT_CKPT)
 IMG_SIZE = int(os.getenv("IMG_SIZE", "224"))
 
 # Normalisasi pakai nilai standar ImageNet (bisa override via ENV jika perlu)
@@ -44,18 +31,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_num_threads(max(1, os.cpu_count() or 1))
 torch.backends.cudnn.benchmark = True
 
-# Inference lock agar aman saat beberapa request paralel di GPU
+# Inference lock untuk request paralel
 from threading import Lock
 _infer_lock = Lock()
 
-# -----------------------------
-# 1) MODEL (identik dengan training Anda)
-# -----------------------------
+# Model
 class EmotionCNN(nn.Module):
     def __init__(self, num_classes=4):
         super().__init__()
-        # Penting: hindari download weight saat server start.
-        # Di torchvision baru, gunakan weights=None (bukan pretrained=True)
+        # Gunakan weights=None untuk menghindari download saat start
         self.backbone = models.resnet18(weights=None)
         self.backbone.fc = nn.Sequential(
             nn.Dropout(0.3),
@@ -68,14 +52,13 @@ class EmotionCNN(nn.Module):
         return self.backbone(x)
 
 def _strip_module_prefix(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-    # Bersihkan prefix "module." jika training pakai DataParallel
     if not any(k.startswith("module.") for k in state_dict.keys()):
         return state_dict
     return {k.replace("module.", "", 1): v for k, v in state_dict.items()}
 
 def load_checkpoint(path: str):
     ckpt = torch.load(path, map_location=device)
-    # dukung beberapa kemungkinan kunci:
+    # Dukungan beberapa kemungkinan kunci
     state_keys = ["ema_state_dict", "model_state_dict", "state_dict", "model"]
     state_dict = None
     for k in state_keys:
@@ -84,7 +67,7 @@ def load_checkpoint(path: str):
             state_dict = obj.state_dict() if hasattr(obj, "state_dict") else obj
             break
 
-    # Jika benar-benar pure state_dict
+    # Pure state_dict
     if state_dict is None and isinstance(ckpt, dict) and all(isinstance(v, torch.Tensor) for v in ckpt.values()):
         state_dict = ckpt
 
@@ -99,9 +82,7 @@ def load_checkpoint(path: str):
     model.eval()
     return model, class_names
 
-# -----------------------------
-# 2) TRANSFORM & FACE CROP
-# -----------------------------
+# Transform & Face crop
 val_tf = transforms.Compose([
     transforms.Grayscale(num_output_channels=3),
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
@@ -109,7 +90,7 @@ val_tf = transforms.Compose([
     transforms.Normalize(MEAN, STD),
 ])
 
-# disiapkan kalau ingin eksperimen:
+# Alternatif center-crop (opsional):
 val_tf_center = transforms.Compose([
     transforms.Resize(int(IMG_SIZE * 1.14)),
     transforms.CenterCrop(IMG_SIZE),
@@ -117,11 +98,11 @@ val_tf_center = transforms.Compose([
     transforms.Normalize(MEAN, STD),
 ])
 
-# Face detector (Haar Cascade) sekali load
+# Face detector (Haar Cascade)
 _haar_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
 def detect_and_crop_face_pil(pil_img: Image.Image) -> Image.Image:
-    """Menerima PIL RGB, kembalikan PIL RGB ter-crop wajah (margin bawah diperbesar)."""
+    """Crop wajah (margin bawah diperbesar)."""
     img = np.array(pil_img)[:, :, ::-1]  # ke BGR utk OpenCV
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     faces = _haar_cascade.detectMultiScale(gray, 1.3, 5)
@@ -141,13 +122,7 @@ def detect_and_crop_face_pil(pil_img: Image.Image) -> Image.Image:
     return Image.fromarray(cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB))
 
 def preprocess_image_pil(pil_img: Image.Image) -> torch.Tensor:
-    """
-    Preprocess identik dgn skrip Anda:
-      - face crop
-      - CLAHE (grayscale) lalu kembali ke RGB
-      - resize + normalize
-    Return: tensor [1,3,H,W]
-    """
+    """Preprocess: face crop, CLAHE, grayscale→RGB, resize+normalize."""
     img = detect_and_crop_face_pil(pil_img)
 
     # CLAHE pada grayscale lalu kembalikan ke RGB
@@ -159,9 +134,7 @@ def preprocess_image_pil(pil_img: Image.Image) -> torch.Tensor:
     x = val_tf(img).unsqueeze(0)  # [1,3,H,W]
     return x
 
-# -----------------------------
-# 3) INFERENCE UTIL
-# -----------------------------
+# Inference util
 @torch.inference_mode()
 def predict_logits(model: nn.Module, x: torch.Tensor, use_fp16: bool = False) -> torch.Tensor:
     """
@@ -175,7 +148,6 @@ def predict_logits(model: nn.Module, x: torch.Tensor, use_fp16: bool = False) ->
         return model(x)
 
 def to_response(probs: torch.Tensor, class_names: List[str]) -> Dict[str, Any]:
-    # probs: [C]
     conf, idx = probs.max(dim=0)
     entropy = float(-(probs * (probs + 1e-12).log()).sum().item())
     return {
@@ -187,17 +159,14 @@ def to_response(probs: torch.Tensor, class_names: List[str]) -> Dict[str, Any]:
 
 @torch.inference_mode()
 def predict_single(model: nn.Module, pil_img: Image.Image, class_names: List[str], use_tta: bool = False, use_fp16: bool = False) -> Dict[str, Any]:
-    """
-    Jalankan pipeline preprocess + (opsional) TTA.
-    """
+    """Pipeline preprocess + opsional TTA."""
     if not use_tta:
         x = preprocess_image_pil(pil_img)
         logits = predict_logits(model, x, use_fp16=use_fp16)
         probs = F.softmax(logits, dim=1)[0]
         return to_response(probs, class_names)
     else:
-        # TTA ringan: identik dgn skrip Anda (asli + flip horizontal)
-        # NOTE: Preprocess (crop/CLAHE/normalize) tetap dilakukan per-view
+        # TTA ringan: asli + flip horizontal
         views = []
         # original
         views.append(preprocess_image_pil(pil_img))
@@ -209,15 +178,15 @@ def predict_single(model: nn.Module, pil_img: Image.Image, class_names: List[str
         probs = F.softmax(logits, dim=1).mean(dim=0)  # rata-rata
         return to_response(probs, class_names)
 
-# -----------------------------
-# 4) FASTAPI APP
-# -----------------------------
+# FastAPI app
 app = FastAPI(title="Emotion Detection API", version="1.0.0")
 
-# Bebaskan CORS sesuai kebutuhan frontend Anda
+# CORS
+_origins_env = os.getenv("CORS_ALLOW_ORIGINS", "*")
+_origins_list = [o.strip() for o in _origins_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ALLOW_ORIGINS", "*").split(","),
+    allow_origins=_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

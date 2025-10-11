@@ -18,7 +18,7 @@ Server FastAPI untuk menyajikan model emosi PyTorch dengan endpoint sederhana da
 
 - `CHECKPOINT_PATH` (wajib, kecuali Anda mount ke `/models/cnn_emotion_model_v6-2.pth`)
 - `IMG_SIZE` (default `224`)
-- `CORS_ALLOW_ORIGINS` (default `*`)
+- `CORS_ALLOW_ORIGINS` (default `*`; contoh yang direkomendasikan: `https://mental-healt-be.xianly.cloud,http://localhost:3001,https://soulspace-rust.vercel.app`)
 
 ## Jalankan Lokal (tanpa Docker)
 
@@ -48,34 +48,54 @@ Build image dari folder `api`:
 docker build -t emotion-api .
 ```
 
-Jalankan container dengan mount checkpoint dan expose port `8000`:
+Jalankan container (model sudah termasuk di image) dan expose port `3003`:
 
 Windows PowerShell (jalankan dari root repo):
 
 ```powershell
-docker run --rm -p 8000:8000 ^
-  -e CHECKPOINT_PATH=/models/fine-tune/cnn_emotion_model_v6-2.pth ^
-  -e IMG_SIZE=224 ^
-  -e CORS_ALLOW_ORIGINS=* ^
-  -v "${PWD}\\models:/models:ro" ^
-  emotion-api:latest
+docker run --rm -p 3003:3003 emotion-api:latest
 ```
 
 macOS/Linux (bash, jalankan dari root repo):
 
 ```bash
-docker run --rm -p 8000:8000 \
-  -e CHECKPOINT_PATH=/models/fine-tune/cnn_emotion_model_v6-2.pth \
-  -e IMG_SIZE=224 \
-  -e CORS_ALLOW_ORIGINS=* \
-  -v "$(pwd)/models:/models:ro" \
+docker run --rm -p 3003:3003 emotion-api:latest
+```
+
+Alternatif: gunakan file env khusus Docker (`--env-file`) untuk override konfigurasi (mis. `IMG_SIZE`, `CORS_ALLOW_ORIGINS`). Model sudah berada di `/app/cnn_emotion_model_v6-2.pth`.
+
+Windows PowerShell (jalankan dari folder `api` di VPS):
+
+```powershell
+docker run --rm -p 3003:3003 ^
+  --env-file api/.env.docker ^
+  emotion-api:latest
+```
+
+macOS/Linux (bash, jalankan dari folder `api` di VPS):
+
+```bash
+docker run --rm -p 3003:3003 \
+  --env-file api/.env.docker \
   emotion-api:latest
 ```
 
 Catatan:
 - Image tidak termasuk website — buka `web-app/index.html` secara terpisah.
-- Untuk Linux/macOS, sesuaikan path host pada opsi `-v`.
-- Jangan commit file model/cekpoin ke repository (ukuran besar). Gunakan mount Docker (`-v ./models:/models:ro`) atau path relatif lokal untuk `CHECKPOINT_PATH`.
+ - Sebelum build di VPS, pastikan file `api/cnn_emotion_model_v6-2.pth` sudah di-upload ke VPS (file model biasanya di-ignore Git).
+ - Verifikasi endpoint setelah run: `curl http://localhost:3003/health`.
+
+## Deploy ke VPS (ringkas)
+
+1) Upload seluruh folder `api` (termasuk `cnn_emotion_model_v6-2.pth`) ke VPS.
+2) Masuk ke folder `api` lalu build image:
+   - `docker build -t emotion-api .`
+3) Jalankan container pada port 3003 (gunakan env-file bila perlu):
+   - `docker run --rm -p 3003:3003 --env-file .env.docker emotion-api:latest`
+4) Cek kesehatan: `curl http://localhost:3003/health`.
+5) Jika ingin override konfigurasi (mis. CORS), edit `.env.docker` lalu jalankan container baru.
+ - Jangan commit file model/cekpoin ke repository (ukuran besar). Model dibundel ke image saat build; gunakan `--env-file` untuk konfigurasi tambahan.
+ - File `.env` yang berisi perintah `set ...` hanya berlaku untuk run lokal di PowerShell, bukan untuk Docker. Untuk Docker gunakan `-e` atau `--env-file` dengan format `KEY=VALUE`.
 
 ## Endpoint API
 
