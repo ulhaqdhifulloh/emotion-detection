@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎭 Real-time Emotion Detection</title>
+    <title>🎭 Emotion Detection</title>
     <style>
         * {
             margin: 0;
@@ -282,8 +282,8 @@
 </head>
 <body>
     <div class="header">
-        <h1>🎭 Real-time Emotion Detection</h1>
-        <p>AI-powered facial emotion recognition using your webcam</p>
+        <h1>🎭 Emotion Detection (Capture Photo)</h1>
+        <p>Ambil foto dari webcam lalu kirim ke API untuk prediksi</p>
     </div>
 
     <div class="container">
@@ -301,6 +301,9 @@
             <button class="btn btn-danger" id="stopBtn" disabled>
                 ⏹️ Stop Camera
             </button>
+            <button class="btn btn-secondary" id="captureBtn" disabled>
+                📸 Capture Photo
+            </button>
             <button class="btn btn-secondary" id="settingsBtn">
                 ⚙️ Settings
             </button>
@@ -308,55 +311,42 @@
 
         <div class="video-container">
             <video id="videoElement" autoplay muted playsinline></video>
-            <canvas id="overlayCanvas" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
         </div>
 
         <div class="predictions" id="predictions"></div>
 
         <div class="settings" id="settings" style="display: none;">
-            <h3 style="margin-bottom: 15px;">⚙️ Detection Settings</h3>
-            
-            <div class="setting-group">
-                <label class="setting-label" for="detectionDelay">Detection Delay (ms):</label>
-                <input type="range" class="setting-input" id="detectionDelay" min="100" max="2000" value="500">
-                <span id="delayValue">500ms</span>
-            </div>
+            <h3 style="margin-bottom: 15px;">⚙️ API Settings</h3>
 
             <div class="setting-group">
-                <label class="setting-label" for="minFaceSize">Minimum Face Size (px):</label>
-                <input type="range" class="setting-input" id="minFaceSize" min="50" max="200" value="80">
-                <span id="faceSizeValue">80px</span>
+                <label class="setting-label" for="apiBaseUrlInput">API Base URL:</label>
+                <input type="text" class="setting-input" id="apiBaseUrlInput" placeholder="http://localhost:8000" />
+                <div class="setting-help">Alamat server API FastAPI Anda. Default: http://localhost:8000</div>
             </div>
 
-            <div class="setting-group">
-                <label class="setting-label" for="confidenceThreshold">
-                    🎯 Confidence Threshold:
-                    <small style="display: block; font-weight: normal; opacity: 0.8; margin-top: 2px;">
-                        Minimum confidence untuk menampilkan wajah (0.1 = lebih sensitif, 1.0 = sangat ketat)
-                    </small>
-                </label>
-                <input type="range" class="setting-input" id="confidenceThreshold" min="0.1" max="1.0" step="0.1" value="0.3">
-                <span id="confidenceValue">0.3</span>
+            <div class="setting-group" style="display: flex; gap: 16px; align-items: center;">
+                <label class="setting-label" for="ttaCheckbox" style="margin: 0;">Use TTA (flip horizontal):</label>
+                <input type="checkbox" id="ttaCheckbox" />
             </div>
-            
-            <div style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; font-size: 0.9em;">
+
+            <div class="setting-group" style="display: flex; gap: 16px; align-items: center;">
+                <label class="setting-label" for="fp16Checkbox" style="margin: 0;">Use FP16 (GPU autocast):</label>
+                <input type="checkbox" id="fp16Checkbox" checked />
+            </div>
+
+            <div class="setting-note" style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; font-size: 0.9em;">
                 <strong>📖 Penjelasan Settings:</strong><br>
-                • <strong>Detection Delay</strong>: Jeda waktu antara prediksi emotion (lebih tinggi = lebih stabil)<br>
-                • <strong>Min Face Size</strong>: Ukuran minimum wajah yang dideteksi (lebih tinggi = fokus wajah besar)<br>
-                • <strong>Confidence Threshold</strong>: Tingkat kepercayaan minimum untuk menampilkan wajah (lebih tinggi = lebih selektif)
+                • <strong>TTA</strong>: Menggunakan dua pandangan (asli + flip) dan merata-rata prediksi. Lebih akurat, sedikit lebih lambat.<br>
+                • <strong>FP16</strong>: Autocast FP16 saat GPU tersedia. Di CPU, opsi ini diabaikan.
             </div>
         </div>
     </div>
 
     <div class="footer">
-        <p>🤖 Powered by ONNX.js and BlazeFace | 🎯 CNN-based emotion detection</p>
+        <p>🤖 Powered by FastAPI backend | 🎯 CNN-based emotion detection</p>
     </div>
 
-    <!-- ONNX.js -->
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js"></script>
-    <!-- Face detection -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js"></script>
+    <!-- No face detection scripts needed; backend handles detection/cropping -->
 
     <script src="js/emotion-detector.js"></script>
 </body>

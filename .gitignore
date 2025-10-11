@@ -23,15 +23,13 @@ MANIFEST
 
 # Virtual environments
 .env
-.venv
-env/
+.venv/
 venv/
+env/
 ENV/
+venv_emotion/
 env.bak/
 venv.bak/
-activate_venv.bat
-setup_venv.bat
-activate_venv.ps1
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -44,13 +42,22 @@ activate_venv.ps1
 *.swo
 *~
 
-# Trained models (comment out if you want to commit models)
-models/*.pth
-models/*.pt
-models/*.onnx
-models/*.pkl
-models/*.h5
+# Frontend (none; web-app adalah statis, tidak ada build output)
+
+# Trained models (DO NOT commit binary checkpoints)
+# Ignore recursively common model formats and fine-tune artifacts
+models/**/*.pth
+models/**/*.pt
+models/**/*.onnx
+models/**/*.pkl
+models/**/*.h5
+models/**/*.ckpt
+models/**/*.bin
+models/**/*.safetensors
+models/fine-tune/
 !models/.gitkeep
+!models/**/*.py
+!models/__init__.py
 
 # Training results (comment out if you want to commit results)
 results/*.png
@@ -71,6 +78,10 @@ temp_*.jpg
 temp_*.png
 screenshot_*.jpg
 *.tmp
+*.tar
+*.zip
+*.7z
+*.rar
 
 # Logs
 *.log

@@ -1,0 +1,5 @@
+path,pred_idx,pred_label,confidence
+E:\Folder Kuliah\Semester 7\CCI\Github Repository\emotion-detection\images\test\anger_WIN_20251009_00_23_48_Pro.jpg,0,anger,0.8370727300643921
+E:\Folder Kuliah\Semester 7\CCI\Github Repository\emotion-detection\images\test\fear_WIN_20251009_00_24_13_Pro.jpg,1,fear,0.6295047402381897
+E:\Folder Kuliah\Semester 7\CCI\Github Repository\emotion-detection\images\test\joy_WIN_20251009_00_23_41_Pro.jpg,1,fear,0.6930148601531982
+E:\Folder Kuliah\Semester 7\CCI\Github Repository\emotion-detection\images\test\sad_WIN_20251009_00_23_53_Pro.jpg,0,anger,0.44243600964546204
