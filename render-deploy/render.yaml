@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: emotion-detection-api
+    env: python
+    autoDeploy: true
+
+    buildCommand: pip install --upgrade pip setuptools wheel && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+    disk:
+      name: model-cache
+      mountPath: /opt/render/persistent
+      sizeGB: 2
+
+    envVars:
+      - key: MODEL_URL
+        value: https://huggingface.co/ulhaqdhifulloh/emotion-detection/resolve/main/cnn_emotion_model_v6-2.pth
+      - key: CHECKPOINT_PATH
+        value: /opt/render/persistent/model.pth
+      - key: IMG_SIZE
+        value: "224"
+      - key: CORS_ALLOW_ORIGINS
+        value: "*"

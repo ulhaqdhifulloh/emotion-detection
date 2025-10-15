@@ -1,6 +1,7 @@
 # main.py
 import io
 import os
+import json
 import time
 from typing import List, Optional, Dict, Any
 
@@ -11,6 +12,7 @@ import torch.nn.functional as F
 from torchvision import models, transforms
 from PIL import Image
 import cv2
+import urllib.request
 
 from fastapi import FastAPI, File, UploadFile, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,9 +21,8 @@ from contextlib import asynccontextmanager
 
 # Config
 # ENV var untuk memindahkan server tanpa ubah kode
-API_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_CKPT = os.path.join(API_DIR, "cnn_emotion_model_v6-2.pth")
-CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH", DEFAULT_CKPT)
+CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH", "/opt/render/persistent/model.pth")
+MODEL_URL = os.getenv("MODEL_URL")
 IMG_SIZE = int(os.getenv("IMG_SIZE", "224"))
 
 # Normalisasi pakai nilai standar ImageNet (bisa override via ENV jika perlu)
@@ -83,6 +84,75 @@ def load_checkpoint(path: str):
     model.eval()
     return model, class_names
 
+def resolve_hf_url(url: str) -> str:
+    """Normalisasi URL unduh langsung (mis. Hugging Face 'blob'→'resolve')."""
+    if url and "huggingface.co" in url and "/blob/" in url:
+        return url.replace("/blob/", "/resolve/")
+    return url
+
+def _meta_path(out_dir: str) -> str:
+    return os.path.join(out_dir, ".ckpt_meta.json")
+
+def _read_meta(out_dir: str) -> dict | None:
+    mp = _meta_path(out_dir)
+    if os.path.isfile(mp):
+        try:
+            with open(mp, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
+
+def _write_meta(out_dir: str, meta: dict) -> None:
+    try:
+        with open(_meta_path(out_dir), "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+    except Exception as e:
+        print(f"[startup] Gagal menulis meta: {e}")
+
+# Catatan: verifikasi checksum dihapus untuk kesederhanaan.
+
+def ensure_checkpoint() -> str:
+    """Pastikan checkpoint tersedia. Jika belum, unduh dari MODEL_URL.
+
+    Mekanisme pembaruan model:
+    - Aplikasi menyimpan metadata sumber di folder persistent.
+    - Jika nilai `MODEL_URL` berubah, file akan diunduh ulang ke `CHECKPOINT_PATH`.
+    """
+    out_dir = os.path.dirname(CHECKPOINT_PATH) or "."
+    os.makedirs(out_dir, exist_ok=True)
+
+    meta = _read_meta(out_dir) or {}
+
+    def _should_redownload_for_url() -> bool:
+        if MODEL_URL:
+            prev = meta.get("model_url")
+            if prev != MODEL_URL:
+                return True
+        return False
+
+    if os.path.isfile(CHECKPOINT_PATH):
+        # Redownload hanya jika URL berubah
+        if not _should_redownload_for_url():
+            return CHECKPOINT_PATH
+
+    # Unduh via MODEL_URL
+    if MODEL_URL:
+        url = resolve_hf_url(MODEL_URL)
+        try:
+            urllib.request.urlretrieve(url, CHECKPOINT_PATH)
+            _write_meta(out_dir, {
+                "source": "url",
+                "model_url": MODEL_URL,
+                "checkpoint_path": CHECKPOINT_PATH,
+            })
+            return CHECKPOINT_PATH
+        except Exception as e:
+            print(f"[startup] Gagal unduh dari MODEL_URL: {e}")
+
+    # Jika semua gagal
+    raise RuntimeError("Checkpoint tidak ditemukan dan tidak bisa diunduh. Set MODEL_URL.")
+
 # Transform & Face crop
 val_tf = transforms.Compose([
     transforms.Grayscale(num_output_channels=3),
@@ -91,13 +161,7 @@ val_tf = transforms.Compose([
     transforms.Normalize(MEAN, STD),
 ])
 
-# Alternatif center-crop (opsional):
-val_tf_center = transforms.Compose([
-    transforms.Resize(int(IMG_SIZE * 1.14)),
-    transforms.CenterCrop(IMG_SIZE),
-    transforms.ToTensor(),
-    transforms.Normalize(MEAN, STD),
-])
+# (hapus center-crop opsional yang tidak dipakai)
 
 # Face detector (Haar Cascade)
 _haar_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
@@ -184,8 +248,8 @@ def predict_single(model: nn.Module, pil_img: Image.Image, class_names: List[str
 async def lifespan(app: FastAPI):
     # Muat model sekali saat startup
     global MODEL, CLASS_NAMES
-    assert os.path.isfile(CHECKPOINT_PATH), f"Checkpoint tidak ditemukan: {CHECKPOINT_PATH}"
-    MODEL, CLASS_NAMES = load_checkpoint(CHECKPOINT_PATH)
+    ckpt_path = ensure_checkpoint()
+    MODEL, CLASS_NAMES = load_checkpoint(ckpt_path)
     yield
     # Bersih-bersih sederhana
     MODEL = None
@@ -202,10 +266,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-class PredictMeta(BaseModel):
-    tta: bool = False
-    fp16: bool = True
 
 class PredictResult(BaseModel):
     emotion: str
