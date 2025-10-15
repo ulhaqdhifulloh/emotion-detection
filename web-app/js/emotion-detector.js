@@ -8,7 +8,8 @@ class EmotionDetector {
         this.modelInfo = null;
         this.isRunning = false;
         this.lastPrediction = null;
-        this.apiBaseUrl = 'http://localhost:3003';
+        // this.apiBaseUrl = 'http://localhost:3003';
+        this.apiBaseUrl = 'https://emotion-detection-api-80a2.onrender.com';
 
         // Settings
         this.settings = { tta: false, fp16: true };

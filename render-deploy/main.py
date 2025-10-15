@@ -267,6 +267,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def root():
+    return {"message": "Emotion detection API is running!"}
+
 class PredictResult(BaseModel):
     emotion: str
     confidence: float
