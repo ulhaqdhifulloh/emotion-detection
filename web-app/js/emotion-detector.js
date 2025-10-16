@@ -8,8 +8,11 @@ class EmotionDetector {
         this.modelInfo = null;
         this.isRunning = false;
         this.lastPrediction = null;
-        // this.apiBaseUrl = 'http://localhost:3003';
-        this.apiBaseUrl = 'https://emotion-detection-api-80a2.onrender.com';
+        // Default API base URL
+        this.defaultApiBaseUrl = 'https://emotion-detection-api.azurewebsites.net/';
+        // this.defaultApiBaseUrl = 'http://localhost:3003'; // alternatif lokal
+        this.apiBaseUrl = this.defaultApiBaseUrl;
+        this.apiMode = 'default'; // 'default' | 'custom'
 
         // Settings
         this.settings = { tta: false, fp16: true };
@@ -24,6 +27,8 @@ class EmotionDetector {
         this.settingsBtn = document.getElementById('settingsBtn');
         this.settingsPanel = document.getElementById('settings');
         this.apiBaseUrlInput = document.getElementById('apiBaseUrlInput');
+        this.apiModeDefault = document.getElementById('apiModeDefault');
+        this.apiModeCustom = document.getElementById('apiModeCustom');
         this.ttaCheckbox = document.getElementById('ttaCheckbox');
         this.fp16Checkbox = document.getElementById('fp16Checkbox');
         
@@ -31,15 +36,46 @@ class EmotionDetector {
         this.loadModel();
     }
 
+    // Hapus trailing slash dan spasi supaya tidak jadi //predict
+    sanitizeBaseUrl(url) {
+        return (url || '').trim().replace(/\/+$/, '');
+    }
+
     initializeEventListeners() {
         this.startBtn.addEventListener('click', () => this.startCamera());
         this.stopBtn.addEventListener('click', () => this.stopCamera());
         this.captureBtn.addEventListener('click', () => this.captureAndPredict());
         this.settingsBtn.addEventListener('click', () => this.toggleSettings());
+        if (this.apiModeDefault) {
+            this.apiModeDefault.addEventListener('change', () => {
+                if (this.apiModeDefault.checked) {
+                    this.apiMode = 'default';
+                    if (this.apiBaseUrlInput) {
+                        this.apiBaseUrlInput.disabled = true;
+                        this.apiBaseUrlInput.placeholder = this.defaultApiBaseUrl;
+                    }
+                    this.apiBaseUrl = this.sanitizeBaseUrl(this.defaultApiBaseUrl);
+                }
+            });
+        }
+        if (this.apiModeCustom) {
+            this.apiModeCustom.addEventListener('change', () => {
+                if (this.apiModeCustom.checked) {
+                    this.apiMode = 'custom';
+                    if (this.apiBaseUrlInput) {
+                        this.apiBaseUrlInput.disabled = false;
+                        const val = this.sanitizeBaseUrl(this.apiBaseUrlInput.value || '');
+                        this.apiBaseUrl = val || this.sanitizeBaseUrl(this.defaultApiBaseUrl);
+                    }
+                }
+            });
+        }
         if (this.apiBaseUrlInput) {
             this.apiBaseUrlInput.addEventListener('change', () => {
-                const val = (this.apiBaseUrlInput.value || '').trim();
-                this.apiBaseUrl = val || this.apiBaseUrl;
+                if (this.apiMode === 'custom') {
+                    const val = this.sanitizeBaseUrl(this.apiBaseUrlInput.value || '');
+                    this.apiBaseUrl = val || this.sanitizeBaseUrl(this.defaultApiBaseUrl);
+                }
             });
         }
         if (this.ttaCheckbox) {
@@ -68,7 +104,14 @@ class EmotionDetector {
             this.startBtn.disabled = false;
 
             // Reflect settings into UI inputs
-            if (this.apiBaseUrlInput) this.apiBaseUrlInput.value = this.apiBaseUrl;
+            // Default: use default mode and disable input
+            if (this.apiBaseUrlInput) {
+                this.apiBaseUrlInput.value = '';
+                this.apiBaseUrlInput.disabled = true;
+                this.apiBaseUrlInput.placeholder = this.sanitizeBaseUrl(this.defaultApiBaseUrl);
+            }
+            if (this.apiModeDefault) this.apiModeDefault.checked = true;
+            if (this.apiModeCustom) this.apiModeCustom.checked = false;
             if (this.ttaCheckbox) this.ttaCheckbox.checked = !!this.settings.tta;
             if (this.fp16Checkbox) this.fp16Checkbox.checked = !!this.settings.fp16;
         } catch (error) {
@@ -84,7 +127,7 @@ class EmotionDetector {
                 const cfg = await resp.json();
                 // Optional API base URL in config
                 if (cfg.api_base_url) {
-                    this.apiBaseUrl = cfg.api_base_url;
+                    this.apiBaseUrl = this.sanitizeBaseUrl(cfg.api_base_url);
                 }
                 // Apply API/inference settings if present
                 const api = cfg.api_settings || cfg.inference_settings || {};
@@ -99,7 +142,8 @@ class EmotionDetector {
     async initAPI() {
         // Probe health to get classes and device
         try {
-            const resp = await fetch(`${this.apiBaseUrl}/health`);
+            const base = this.sanitizeBaseUrl(this.apiBaseUrl);
+            const resp = await fetch(`${base}/health`);
             if (!resp.ok) throw new Error(`Health status ${resp.status}`);
             const data = await resp.json();
             const classes = Array.isArray(data.classes) ? data.classes : ['anger','fear','joy','sad'];
@@ -229,7 +273,8 @@ class EmotionDetector {
         const form = new FormData();
         form.append('file', blob, 'face.jpg');
 
-        const url = `${this.apiBaseUrl}/predict?tta=${this.settings.tta}&fp16=${this.settings.fp16}`;
+        const base = this.sanitizeBaseUrl(this.apiBaseUrl);
+        const url = `${base}/predict?tta=${this.settings.tta}&fp16=${this.settings.fp16}`;
         const resp = await fetch(url, { method: 'POST', body: form });
         if (!resp.ok) throw new Error(`API status ${resp.status}`);
         const data = await resp.json();
