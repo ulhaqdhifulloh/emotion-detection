@@ -100,12 +100,5 @@ Thumbs.db
 # Backup files
 *.bak
 *.backup
-# Ignore model files inside api folder (keep code tracked)
-api/**/*.pth
-api/**/*.pt
-api/**/*.onnx
-api/**/*.pkl
-api/**/*.h5
-api/**/*.ckpt
-api/**/*.bin
-api/**/*.safetensors
+# Ignore api folder
+api/
